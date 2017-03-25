@@ -1,4 +1,5 @@
 from deserialise import AVM2Unpackable
+import avm2ins
 
 class OptionDetail (AVM2Unpackable):
 	_struct = [
@@ -233,12 +234,32 @@ class MethodBodyInfo (AVM2Unpackable):
 		('vlu30', 'init_scope_depth'),
 		('vlu30', 'max_scope_depth'),
 		('vlu30', 'code_length'),
-		('B', 'code', 'code_length'),
+		(bytes, 'code', 'code_length'),
 		('vlu30', 'exception_count'),
 		(ExceptionInfo, 'exception', 'exception_count'),
 		('vlu30', 'trait_count'),
 		(TraitsInfo, 'trait', 'trait_count'),
 	]
+
+	def bytecode (self):
+		return list(bytecode)
+
+	def iter_bytecode (self):
+		offset = 0
+		remaining = len(self.code)
+
+		while remaining > 0:
+			# read the instruction identifier
+			# (docs actually never say this is a byte)
+			insid, objsize = self._unpack_ctype (self.code, offset, 'B')
+			offset += objsize
+			remaining -= objsize
+
+			instruction = avm2ins.InstructionSet[insid] (self.code, offset, remaining)
+			remaining -= instruction._size
+			offset += instruction._size
+
+			yield instruction
 
 class ABCFile (AVM2Unpackable):
 	_struct = [

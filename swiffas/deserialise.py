@@ -133,9 +133,11 @@ class Unpackable (object):
 			else:
 				return (None, 0)
 
-	def __init__ (self, data, offset, remaining=None):
+	def __init__ (self, data, offset=0, remaining=None):
 		keys, self._size = self._unpack_from_struct (self._struct, data, offset, remaining, place_in_self=True)
+
 		self.__dict__.update (keys)
+		self._fields = keys.keys()
 	
 	def _unpack_from_struct (self, struct, data, offset, remaining, place_in_self=False):
 		structsize = 0
@@ -222,6 +224,18 @@ class Unpackable (object):
 class AVM2Unpackable (Unpackable):
 	byte_order = '<'
 
+	def _unpack_s24 (self, data, offset, remaining):
+		(low, lowsize) = self._unpack_ctype (data, offset, 'H')
+		(high, highsize) = self._unpack_ctype (data, offset + lowsize, 'B')
+
+		# unsigned value
+		value = (high << 16) + low
+
+		mask = 1 << (24 - 1)
+		value = -(value & mask) + (value & ~mask)
+
+		return (value, lowsize + highsize)
+
 	def _unpack_vl (self, data, offset, remaining, fmt):
 		value = 0
 		bitoffset = 0
@@ -269,9 +283,9 @@ class AVM2Unpackable (Unpackable):
 		objsize = 0
 
 		if fmt == 'vlu30' or fmt == 'vlu32' or fmt == 'vls32':
-			values = []
 			if size:
 				# array
+				value = []
 				for i in xrange (size):
 					thisval, thissize = self._unpack_vl (data, offset, remaining, fmt)
 					objsize += thissize
@@ -279,11 +293,23 @@ class AVM2Unpackable (Unpackable):
 					if remaining:
 						remaining -= thissize
 
-					values.append (thisval)
+					value.append (thisval)
 
-				value = values
 			else:
 				value, objsize = self._unpack_vl (data, offset, remaining, fmt)
+		elif fmt == 's24':
+			if size:
+				value = []
+				for i in xrange(size):
+					thisval, thissize = self._unpack_s24 (data, offset, remaining)
+					objsize += thissize
+					offset += thissize
+					if remaining:
+						remaining -= thissize
+
+					value.append (thisval)
+			else:
+				value, objsize = self._unpack_s24 (data, offset, remaining)
 		else:
 			return Unpackable._unpack_object (self, data, offset, remaining, fmt, size)
 

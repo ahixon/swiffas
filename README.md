@@ -1,4 +1,4 @@
-# swifas
+# swiffas
 
 A small Python 2 library that provides:
 
